@@ -23,9 +23,11 @@ import cz.habarta.typescript.generator.util.Pair;
 import cz.habarta.typescript.generator.util.Utils;
 import static cz.habarta.typescript.generator.util.Utils.getInheritanceChain;
 import java.beans.BeanInfo;
+import java.beans.ConstructorProperties;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
@@ -38,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.springframework.beans.BeanUtils;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -321,15 +324,28 @@ public class SpringApplicationParser extends RestApplicationParser {
                     final ModelAttribute modelAttributeAnnotation = AnnotationUtils.findAnnotation(parameter, ModelAttribute.class);
                     if (modelAttributeAnnotation != null) {
                         try {
-                            final BeanInfo beanInfo = Introspector.getBeanInfo(parameter.getType());
-                            for (PropertyDescriptor propertyDescriptor : beanInfo.getPropertyDescriptors()) {
-                                final Method writeMethod = propertyDescriptor.getWriteMethod();
-                                if (writeMethod != null) {
+                            Constructor<?> constructor = BeanUtils.getResolvableConstructor(parameter.getType());
+                            if (constructor.getParameterCount() != 0 && AnnotationUtils.findAnnotation(constructor, ConstructorProperties.class) != null) {
+                                String[] paramNames = BeanUtils.getParameterNames(constructor);
+                                Class<?>[] paramTypes = constructor.getParameterTypes();
+                                for (int i = 0; i < paramNames.length; i++) {
                                     queryParams.add(new RestQueryParam.Single(new MethodParameterModel(
+                                        paramNames[i],
+                                        paramTypes[i]
+                                    ), false));
+                                    foundType(result, paramTypes[i], controllerClass, method.getName());
+                                }
+                            } else {
+                                final BeanInfo beanInfo = Introspector.getBeanInfo(parameter.getType());
+                                for (PropertyDescriptor propertyDescriptor : beanInfo.getPropertyDescriptors()) {
+                                    final Method writeMethod = propertyDescriptor.getWriteMethod();
+                                    if (writeMethod != null) {
+                                        queryParams.add(new RestQueryParam.Single(new MethodParameterModel(
                                             propertyDescriptor.getName(),
                                             propertyDescriptor.getPropertyType()
-                                    ), false));
-                                    foundType(result, propertyDescriptor.getPropertyType(), controllerClass, method.getName());
+                                        ), false));
+                                        foundType(result, propertyDescriptor.getPropertyType(), controllerClass, method.getName());
+                                    }
                                 }
                             }
                         } catch (IntrospectionException e) {

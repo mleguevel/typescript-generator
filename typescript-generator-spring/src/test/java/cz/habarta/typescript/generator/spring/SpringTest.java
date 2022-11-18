@@ -9,6 +9,7 @@ import cz.habarta.typescript.generator.TypeScriptGenerator;
 import cz.habarta.typescript.generator.util.Utils;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.Operation;
+import java.beans.ConstructorProperties;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
@@ -212,6 +213,15 @@ public class SpringTest {
         Assertions.assertTrue(output.contains("echoWithModelAttribute(queryParams?: { message?: string; }): RestResponse<string>"));
     }
 
+    @Test
+    public void testQueryParametersWithModelAndConstructorProperties() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(ControllerWithModelAttributeAndConstructorProperties.class));
+        Assertions.assertTrue(output.contains("echoWithModelAttribute(queryParams?: { msg?: string; }): RestResponse<string>"));
+    }
+
     @RestController
     public static class ControllerWithModelAttribute {
         @RequestMapping("/echoWithModelAttribute")
@@ -221,6 +231,27 @@ public class SpringTest {
 
         static class FilterParams {
             private String message;
+            public String getMessage() { return message; }
+            public void setMessage(String message) { this.message = message; }
+        }
+    }
+
+
+    @RestController
+    public static class ControllerWithModelAttributeAndConstructorProperties {
+        @RequestMapping("/echoWithModelAttribute")
+        public String echoWithModelAttribute(@ModelAttribute FilterParams nested) {
+            return nested.getMessage();
+        }
+
+        static class FilterParams {
+            private String message;
+
+            @ConstructorProperties({"msg"})
+            public FilterParams(String message) {
+                this.message = message;
+            }
+
             public String getMessage() { return message; }
             public void setMessage(String message) { this.message = message; }
         }
